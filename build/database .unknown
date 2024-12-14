@@ -1,0 +1,78 @@
+from flask import Flask, jsonify, request
+from pymongo import MongoClient
+from datetime import datetime
+
+# Initialize Flask app
+app = Flask(_name_)
+
+# MongoDB setup
+client = MongoClient("mongodb://localhost:27017/")
+db = client["traffic_management"]
+collection = db["traffic_data"]
+
+# Route to insert new traffic data
+@app.route('/traffic', methods=['POST'])
+def insert_traffic_data():
+    data = request.json
+    data["timestamp"] = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")  # Add current timestamp
+    collection.insert_one(data)
+    return jsonify({"message": "Traffic data inserted successfully!"}), 201
+
+# Route to get traffic data for a specific location
+@app.route('/traffic', methods=['GET'])
+def get_traffic_data():
+    location = request.args.get('location')
+    if not location:
+        return jsonify({"error": "Location parameter is required"}), 400
+
+    data = collection.find({"location": location})
+    traffic_data = [doc for doc in data]
+    if not traffic_data:
+        return jsonify({"message": "No data found for the given location"}), 404
+
+    return jsonify(traffic_data), 200
+
+# Route to update traffic data
+@app.route('/traffic', methods=['PUT'])
+def update_traffic_data():
+    data = request.json
+    location = data.get("location")
+    new_traffic_count = data.get("traffic_count")
+    
+    if not location or new_traffic_count is None:
+        return jsonify({"error": "Location and traffic_count are required"}), 400
+
+    query = {"location": location}
+    new_values = {"$set": {"traffic_count": new_traffic_count}}
+    result = collection.update_one(query, new_values)
+
+    if result.matched_count == 0:
+        return jsonify({"message": "No data found for the given location"}), 404
+    
+    return jsonify({"message": "Traffic data updated successfully!"}), 200
+
+# Route to delete traffic data
+@app.route('/traffic', methods=['DELETE'])
+def delete_traffic_data():
+    location = request.args.get('location')
+    if not location:
+        return jsonify({"error": "Location parameter is required"}), 400
+
+    query = {"location": location}
+    result = collection.delete_one(query)
+
+    if result.deleted_count == 0:
+        return jsonify({"message": "No data found for the given location"}), 404
+    
+    return jsonify({"message": "Traffic data deleted successfully!"}), 200
+
+# Route to get all traffic data
+@app.route('/traffic/all', methods=['GET'])
+def get_all_traffic_data():
+    data = collection.find()
+    traffic_data = [doc for doc in data]
+    return jsonify(traffic_data), 200
+
+# Main entry point
+if _name_ == '_main_':
+    app.run(debug=True)
